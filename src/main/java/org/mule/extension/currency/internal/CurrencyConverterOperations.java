@@ -14,6 +14,7 @@ import org.mule.runtime.extension.api.exception.ModuleException;
  * This class is a container for operations, every public method in this class
  * will be taken as an extension operation.
  */
+
 public class CurrencyConverterOperations {
 
 	@Parameter
