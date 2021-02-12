@@ -2,6 +2,7 @@ package org.mule.extension.currency.internal;
 
 import static org.mule.runtime.extension.api.annotation.param.MediaType.ANY;
 
+import org.mule.runtime.extension.api.annotation.Expression;
 import org.mule.runtime.extension.api.annotation.error.Throws;
 import org.mule.runtime.extension.api.annotation.param.Config;
 import org.mule.runtime.extension.api.annotation.param.MediaType;
@@ -9,6 +10,11 @@ import org.mule.runtime.extension.api.annotation.param.Parameter;
 import org.mule.runtime.extension.api.annotation.param.display.DisplayName;
 import org.mule.runtime.extension.api.annotation.param.display.Example;
 import org.mule.runtime.extension.api.exception.ModuleException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
  * This class is a container for operations, every public method in this class
@@ -16,12 +22,13 @@ import org.mule.runtime.extension.api.exception.ModuleException;
  */
 
 public class CurrencyConverterOperations {
-
+	private static String CURRENCY_API_URL = "ExchangerateURL";
+	
 	@Parameter
 	@Example("1000")
 	@DisplayName("Amount")
-	private int amount;
-
+	@Expression(org.mule.runtime.api.meta.ExpressionSupport.SUPPORTED)
+	private Double amount;
 	/**
 	 * Example of a simple operation that receives an amount in double and returns
 	 * equivalent amount in US dollar that will be set on the payload.
@@ -30,41 +37,40 @@ public class CurrencyConverterOperations {
 	@DisplayName("INR To USD")
 	@Throws(CurrencyConverterErrorProvider.class)
 	public Double inrToUsd(@Config CurrencyConverterConfiguration config) {
-
+		Double result = null;
+		CURRENCY_API_URL = config.getCurrencyAPIUrl()+"?apikey=" + config.getApiKey();
 		try {
-			if (config.getApiKey() != null) {
-				System.out.println(config.getApiKey());
-			}
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
+			result = amount / getExchangeRate("INR");
+		} catch (IOException e) {
 			throw new ModuleException(CurrencyConverterErrorType.INVALID_REQUEST, e);
-			// e.printStackTrace();
 		}
-		return amount / 73.0;// get latest exchange rates
+		return result;
 	}
 
-	/**
-	 * Example of a simple operation that receives an amount in double and returns
-	 * equivalent amount in pound that will be set on the payload.
-	 */
-
-	@MediaType(value = ANY)
-	@DisplayName("USD To GBP")
-	@Throws(CurrencyConverterErrorProvider.class)
-	public Double usdToGbp(@Config CurrencyConverterConfiguration config) {
-
-		try {
-			if (config.getApiKey() != null) {
-				System.out.println(config.getApiKey());
+	private static Double getExchangeRate(String currencyCode) throws IOException {
+		URL obj = new URL(CURRENCY_API_URL);
+		HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+		connection.setRequestMethod("GET");
+		StringBuilder response = new StringBuilder();
+		int responseCode = connection.getResponseCode();
+		if (responseCode == HttpURLConnection.HTTP_OK) { // success
+			BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+			String inputLine;
+			while ((inputLine = br.readLine()) != null) {
+				response.append(inputLine);
 			}
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			throw new ModuleException(CurrencyConverterErrorType.INVALID_REQUEST, e);
-			// e.printStackTrace();
+			br.close();
+		} else {
+			System.out.println("GET request failed.");
 		}
+		String[] arrOfStr = response.toString().replaceAll("\"", "").split(",");
 
-		return amount * 88.0; // get latest exchange rates
-
+		Double exchangeRate = null;
+		for (String a : arrOfStr) {
+			if (a.contains(currencyCode))
+				exchangeRate = Double.parseDouble(a.split(":")[1]);
+		}
+		return exchangeRate;
 	}
 
 }
